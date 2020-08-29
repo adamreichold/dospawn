@@ -1,0 +1,23 @@
+binary: /project/target/x86_64-unknown-linux-gnu/release/binary
+inputs:
+  - /project/input-x.dat
+  - /project/input-y.dat
+  - /project/input-z.dat
+config:
+  max_machines: 4
+  name: example
+  image: "23"
+  size: c-4
+  region: fra1
+  ssh_key: "42"
+machines: []
+tasks:
+  - name: task_x
+    args: "input-x.dat"
+    repeat: 3
+  - name: task_y
+    args: "input-y.dat"
+    repeat: 3
+  - name: task_z
+    args: "input-z.dat"
+    repeat: 3
