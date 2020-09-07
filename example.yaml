@@ -10,6 +10,8 @@ config:
   size: c-4
   region: fra1
   ssh_key: "42"
+  ssh_user: "clear"
+  install_cmd: "sudo swupd bundle-add rsync"
 machines: []
 tasks:
   - name: task_x

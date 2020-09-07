@@ -27,7 +27,7 @@ fn main() -> Fallible {
 
     for machine in &job.machines {
         if machine.task.is_none() {
-            machine.install_required_bundles()?;
+            machine.install_required_software(&job.config)?;
             machine.copy_binary_and_inputs(&job)?;
         }
     }
@@ -39,9 +39,9 @@ fn main() -> Fallible {
             let machine = &mut job.machines[idx];
 
             if let Some(task) = &machine.task {
-                let finished = task.check(&job.binary, machine)?;
+                let finished = task.check(&job.config, &job.binary, machine)?;
 
-                task.fetch_results(machine)?;
+                task.fetch_results(&job.config, machine)?;
 
                 if finished {
                     machine.task = None;
@@ -54,7 +54,7 @@ fn main() -> Fallible {
 
             if machine.task.is_none() {
                 if let Some(task) = next_task(&mut job.tasks) {
-                    task.start(machine)?;
+                    task.start(&job.config, machine)?;
 
                     machine.task = Some(task);
 
@@ -118,6 +118,8 @@ struct Config {
     size: String,
     region: String,
     ssh_key: String,
+    ssh_user: String,
+    install_cmd: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -178,14 +180,14 @@ impl Machine {
         })
     }
 
-    fn install_required_bundles(&self) -> Fallible {
-        println!("Installing required bundles on machine {}", self.name);
+    fn install_required_software(&self, config: &Config) -> Fallible {
+        println!("Installing required software on machine {}", self.name);
 
         let ssh = Command::new("ssh")
             .args(SSH_OPTS)
-            .arg(format!("clear@{}", self.ip))
+            .arg(format!("{}@{}", config.ssh_user, self.ip))
             .arg("--")
-            .arg("sudo swupd bundle-add rsync")
+            .arg(&config.install_cmd)
             .status()?;
 
         if !ssh.success() {
@@ -207,7 +209,7 @@ impl Machine {
             .arg("-C")
             .arg(&job.binary)
             .args(&job.inputs)
-            .arg(format!("clear@{}:", self.ip))
+            .arg(format!("{}@{}:", job.config.ssh_user, self.ip))
             .status()?;
 
         if !scp.success() {
@@ -243,7 +245,7 @@ struct Task {
 }
 
 impl Task {
-    fn start(&self, machine: &Machine) -> Fallible {
+    fn start(&self, config: &Config, machine: &Machine) -> Fallible {
         println!("Starting task {} on machine {}", self.name, machine.name);
 
         let cmd = format!(
@@ -254,7 +256,7 @@ impl Task {
 
         let ssh = Command::new("ssh")
             .args(SSH_OPTS)
-            .arg(format!("clear@{}", machine.ip))
+            .arg(format!("{}@{}", config.ssh_user, machine.ip))
             .arg("--")
             .arg(cmd)
             .status()?;
@@ -270,7 +272,7 @@ impl Task {
         Ok(())
     }
 
-    fn check(&self, binary: &Path, machine: &Machine) -> Fallible<bool> {
+    fn check(&self, config: &Config, binary: &Path, machine: &Machine) -> Fallible<bool> {
         println!("Checking task {} on machine {}", self.name, machine.name);
 
         let binary_file_name = binary
@@ -283,7 +285,7 @@ impl Task {
 
         let ssh = Command::new("ssh")
             .args(SSH_OPTS)
-            .arg(format!("clear@{}", machine.ip))
+            .arg(format!("{}@{}", config.ssh_user, machine.ip))
             .arg("--")
             .arg(cmd)
             .stdout(Stdio::null())
@@ -292,7 +294,7 @@ impl Task {
         Ok(!ssh.success())
     }
 
-    fn fetch_results(&self, machine: &Machine) -> Fallible {
+    fn fetch_results(&self, config: &Config, machine: &Machine) -> Fallible {
         println!(
             "Fetching results of task {} from machine {}",
             self.name, machine.name
@@ -305,7 +307,7 @@ impl Task {
             .arg("--delete")
             .arg("--inplace")
             .arg("--compress")
-            .arg(format!("clear@{}:{}/", machine.ip, self.name))
+            .arg(format!("{}@{}:{}/", config.ssh_user, machine.ip, self.name))
             .arg(&self.name)
             .status()?;
 
