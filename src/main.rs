@@ -26,8 +26,10 @@ fn main() -> Fallible {
     }
 
     for machine in &job.machines {
-        machine.install_required_bundles()?;
-        machine.copy_binary_and_inputs(&job)?;
+        if machine.task.is_none() {
+            machine.install_required_bundles()?;
+            machine.copy_binary_and_inputs(&job)?;
+        }
     }
 
     while !job.machines.is_empty() {
