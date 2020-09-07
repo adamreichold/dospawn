@@ -26,6 +26,7 @@ fn main() -> Fallible {
     }
 
     for machine in &job.machines {
+        machine.install_required_bundles()?;
         machine.copy_binary_and_inputs(&job)?;
     }
 
@@ -51,7 +52,7 @@ fn main() -> Fallible {
 
             if machine.task.is_none() {
                 if let Some(task) = next_task(&mut job.tasks) {
-                    task.start(&job.binary, machine)?;
+                    task.start(machine)?;
 
                     machine.task = Some(task);
 
@@ -175,6 +176,27 @@ impl Machine {
         })
     }
 
+    fn install_required_bundles(&self) -> Fallible {
+        println!("Installing required bundles on machine {}", self.name);
+
+        let ssh = Command::new("ssh")
+            .args(SSH_OPTS)
+            .arg(format!("clear@{}", self.ip))
+            .arg("--")
+            .arg("sudo swupd bundle-add rsync")
+            .status()?;
+
+        if !ssh.success() {
+            return Err(format!(
+                "Failed to install required bundles on machine {}",
+                self.name,
+            )
+            .into());
+        }
+
+        Ok(())
+    }
+
     fn copy_binary_and_inputs(&self, job: &Job) -> Fallible {
         println!("Copying binary and inputs to machine {}", self.name);
 
@@ -214,20 +236,18 @@ impl Machine {
 #[derive(Serialize, Deserialize, Clone)]
 struct Task {
     name: String,
-    args: String,
+    cmd: String,
     repeat: Option<usize>,
 }
 
 impl Task {
-    fn start(&self, binary: &Path, machine: &Machine) -> Fallible {
+    fn start(&self, machine: &Machine) -> Fallible {
         println!("Starting task {} on machine {}", self.name, machine.name);
 
         let cmd = format!(
-            "nohup ./{} {} >{}.out 2>{}.err &",
-            binary_file_name(binary)?,
-            self.args,
-            self.name,
-            self.name
+            "rm -rf {name} && mkdir {name} && cd {name} && (nohup {cmd} >stdout 2>stderr &)",
+            name = self.name,
+            cmd = self.cmd,
         );
 
         let ssh = Command::new("ssh")
@@ -251,7 +271,13 @@ impl Task {
     fn check(&self, binary: &Path, machine: &Machine) -> Fallible<bool> {
         println!("Checking task {} on machine {}", self.name, machine.name);
 
-        let cmd = format!("pidof {}", binary_file_name(binary)?);
+        let binary_file_name = binary
+            .file_name()
+            .ok_or_else(|| "Missing binary file name")?
+            .to_str()
+            .ok_or_else(|| "Invalid binary file name")?;
+
+        let cmd = format!("pidof {}", binary_file_name);
 
         let ssh = Command::new("ssh")
             .args(SSH_OPTS)
@@ -270,15 +296,18 @@ impl Task {
             self.name, machine.name
         );
 
-        let scp = Command::new("scp")
-            .args(SSH_OPTS)
-            .arg("-C")
-            .arg(format!("clear@{}:{}.out", machine.ip, self.name))
-            .arg(format!("clear@{}:{}.err", machine.ip, self.name))
-            .arg(".")
+        let rsync = Command::new("rsync")
+            .arg("-e")
+            .arg(format!("ssh {}", SSH_OPTS.join(" ")))
+            .arg("--recursive")
+            .arg("--delete")
+            .arg("--inplace")
+            .arg("--compress")
+            .arg(format!("clear@{}:{}/", machine.ip, self.name))
+            .arg(&self.name)
             .status()?;
 
-        if !scp.success() {
+        if !rsync.success() {
             return Err(format!(
                 "Failed to fetch results of task {} from machine {}",
                 self.name, machine.name,
@@ -305,16 +334,6 @@ fn next_task(tasks: &mut VecDeque<Task>) -> Option<Task> {
     }
 
     Some(task)
-}
-
-fn binary_file_name(binary: &Path) -> Fallible<&str> {
-    let file_name = binary
-        .file_name()
-        .ok_or_else(|| "Missing binary file name")?
-        .to_str()
-        .ok_or_else(|| "Invalid binary file name")?;
-
-    Ok(file_name)
 }
 
 const SSH_OPTS: &[&str] = &[

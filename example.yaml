@@ -13,11 +13,11 @@ config:
 machines: []
 tasks:
   - name: task_x
-    args: "input-x.dat"
+    cmd: "../binary input-x.dat"
     repeat: 3
   - name: task_y
-    args: "input-y.dat"
+    cmd: "../binary input-y.dat"
     repeat: 3
   - name: task_z
-    args: "input-z.dat"
+    cmd: "../binary input-z.dat"
     repeat: 3
