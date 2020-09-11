@@ -71,7 +71,7 @@ fn main() -> Fallible {
             }
         }
 
-        sleep(Duration::from_secs(60));
+        sleep(Duration::from_secs(300));
     }
 
     Ok(())
