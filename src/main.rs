@@ -32,7 +32,7 @@ fn main() -> Fallible {
         }
     }
 
-    while !job.machines.is_empty() {
+    loop {
         let mut idx = 0;
 
         while idx < job.machines.len() {
@@ -71,7 +71,11 @@ fn main() -> Fallible {
             }
         }
 
-        sleep(Duration::from_secs(300));
+        if job.machines.is_empty() {
+            break;
+        } else {
+            sleep(Duration::from_secs(300));
+        }
     }
 
     Ok(())
