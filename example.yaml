@@ -14,12 +14,12 @@ config:
   install_cmd: "sudo swupd bundle-add rsync"
 machines: []
 tasks:
-  - name: task_x
-    cmd: "../binary input-x.dat"
+  - name: "task_x_{{repeat}}"
+    cmd: "../binary input-x.dat {{repeat}}"
     repeat: 3
-  - name: task_y
-    cmd: "../binary input-y.dat"
+  - name: "task_y_{{repeat}}"
+    cmd: "../binary input-y.dat {{repeat}}"
     repeat: 3
-  - name: task_z
-    cmd: "../binary input-z.dat"
+  - name: "task_z_{{repeat}}"
+    cmd: "../binary input-z.dat {{repeat}}"
     repeat: 3

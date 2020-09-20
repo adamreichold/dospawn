@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_yaml::{from_slice, to_vec};
 
 fn main() -> Fallible {
-    let path = args().nth(1).ok_or_else(|| "Missing path argument")?;
+    let path = args().nth(1).ok_or("Missing path argument")?;
 
     let mut job = Job::read(&path)?;
 
@@ -167,14 +167,8 @@ impl Machine {
         let stdout = String::from_utf8(doctl.stdout)?;
         let mut fields = stdout.split_whitespace();
 
-        let id = fields
-            .next()
-            .ok_or_else(|| "Missing Droplet ID")?
-            .to_owned();
-        let ip = fields
-            .next()
-            .ok_or_else(|| "Missing Droplet IP")?
-            .to_owned();
+        let id = fields.next().ok_or("Missing Droplet ID")?.to_owned();
+        let ip = fields.next().ok_or("Missing Droplet IP")?.to_owned();
 
         Ok(Self {
             name,
@@ -281,9 +275,9 @@ impl Task {
 
         let binary_file_name = binary
             .file_name()
-            .ok_or_else(|| "Missing binary file name")?
+            .ok_or("Missing binary file name")?
             .to_str()
-            .ok_or_else(|| "Invalid binary file name")?;
+            .ok_or("Invalid binary file name")?;
 
         let cmd = format!("pidof {}", binary_file_name);
 
@@ -337,7 +331,9 @@ fn next_task(tasks: &mut VecDeque<Task>) -> Option<Task> {
             tasks.push_back(task);
         }
 
-        task.name += &format!("_{}", repeat);
+        let repeat = repeat.to_string();
+        task.name = task.name.replace("{{repeat}}", &repeat);
+        task.cmd = task.cmd.replace("{{repeat}}", &repeat);
         task.repeat = None;
     }
 
