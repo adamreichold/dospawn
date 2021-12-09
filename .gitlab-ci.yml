@@ -1,4 +1,18 @@
+stages:
+  - check
+  - build
+
+check:
+  stage: check
+  image: rust:slim
+  before_script:
+    - rustup component add rustfmt clippy
+  script:
+    - cargo fmt -- --check
+    - cargo clippy -- --deny warnings
+
 build:
+  stage: build
   image: rust:slim
   variables:
     RUSTFLAGS: "-Ctarget-feature=+crt-static"
