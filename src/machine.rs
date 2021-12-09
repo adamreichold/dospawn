@@ -1,5 +1,4 @@
 use std::process::{Command, Stdio};
-use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 
@@ -8,10 +7,9 @@ use crate::{job::Job, task::Task, Config, Fallible, SSH_OPTS};
 #[derive(Serialize, Deserialize)]
 pub struct Machine {
     pub name: String,
-    pub id: String,
+    pub id: usize,
     pub ip: String,
     pub task: Option<Task>,
-    pub next_check: SystemTime,
 }
 
 impl Machine {
@@ -47,7 +45,7 @@ impl Machine {
         let stdout = String::from_utf8(doctl.stdout)?;
         let mut fields = stdout.split_whitespace();
 
-        let id = fields.next().ok_or("Missing Droplet ID")?.to_owned();
+        let id = fields.next().ok_or("Missing Droplet ID")?.parse()?;
         let ip = fields.next().ok_or("Missing Droplet IP")?.to_owned();
 
         Ok(Self {
@@ -55,7 +53,6 @@ impl Machine {
             id,
             ip,
             task: None,
-            next_check: SystemTime::now() + config.check_interval,
         })
     }
 
@@ -105,7 +102,7 @@ impl Machine {
 
         let doctl = Command::new("doctl")
             .args(&["compute", "droplet", "delete", "--force"])
-            .arg(&self.id)
+            .arg(self.id.to_string())
             .status()?;
 
         if !doctl.success() {
@@ -113,17 +110,5 @@ impl Machine {
         }
 
         Ok(())
-    }
-
-    pub fn next_check(next_check: &mut SystemTime, config: &Config) -> bool {
-        let now = SystemTime::now();
-
-        if *next_check <= now {
-            *next_check = now + config.check_interval;
-
-            true
-        } else {
-            false
-        }
     }
 }

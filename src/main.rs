@@ -1,7 +1,8 @@
-use std::env::args;
+use std::collections::VecDeque;
+use std::env::args_os;
 use std::error::Error;
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -12,7 +13,7 @@ mod task;
 use crate::{job::Job, machine::Machine};
 
 fn main() -> Fallible {
-    let path = args().nth(1).ok_or("Missing path argument")?;
+    let path = args_os().nth(1).ok_or("Missing path argument")?;
 
     let mut job = Job::read(&path)?;
 
@@ -26,61 +27,65 @@ fn main() -> Fallible {
         job.write(&path)?;
     }
 
+    let mut todo = VecDeque::new();
+
     for machine in &job.machines {
         if machine.task.is_none() {
             machine.copy_binary_and_inputs(&job)?;
             machine.install_required_software(&job.config)?;
         }
+
+        todo.push_back((Instant::now(), machine.id));
     }
 
-    loop {
-        let mut idx = 0;
+    while let Some((deadline, machine_id)) = todo.pop_front() {
+        if let Some(duration) = deadline.checked_duration_since(Instant::now()) {
+            sleep(duration);
+        }
 
-        while idx < job.machines.len() {
-            let machine = &mut job.machines[idx];
+        let machine_idx = job
+            .machines
+            .iter_mut()
+            .position(|machine| machine.id == machine_id)
+            .unwrap();
 
-            if let Some(task) = &machine.task {
-                if Machine::next_check(&mut machine.next_check, &job.config) {
-                    let finished = task.check(&job.config, machine)?;
+        let machine = &mut job.machines[machine_idx];
 
-                    if finished || job.config.fetch_partial_results {
-                        task.fetch_results(&job.config, machine)?;
-                    }
+        if let Some(task) = &machine.task {
+            let finished = task.check(&job.config, machine)?;
 
-                    if finished {
-                        machine.task = None;
-
-                        job.write(&path)?;
-                    }
-                }
+            if finished || job.config.fetch_partial_results {
+                task.fetch_results(&job.config, machine)?;
             }
 
-            let machine = &mut job.machines[idx];
+            if finished {
+                machine.task = None;
 
-            if machine.task.is_none() {
-                if let Some(task) = Job::next_task(&mut job.tasks) {
-                    task.start(&job.config, machine)?;
+                job.write(&path)?;
+            }
+        }
 
-                    machine.task = Some(task);
+        let machine = &mut job.machines[machine_idx];
 
-                    idx += 1;
-                } else {
-                    machine.delete()?;
+        if machine.task.is_none() {
+            if let Some(task) = Job::next_task(&mut job.tasks) {
+                task.start(&job.config, machine)?;
 
-                    job.machines.remove(idx);
-                }
+                machine.task = Some(task);
 
                 job.write(&path)?;
             } else {
-                idx += 1;
+                machine.delete()?;
+
+                job.machines.swap_remove(machine_idx);
+
+                job.write(&path)?;
+
+                continue;
             }
         }
 
-        if job.machines.is_empty() {
-            break;
-        } else if let Some(duration) = job.next_check() {
-            sleep(duration);
-        }
+        todo.push_back((Instant::now() + job.config.check_interval, machine_id));
     }
 
     Ok(())
