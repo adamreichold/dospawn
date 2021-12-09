@@ -28,8 +28,8 @@ fn main() -> Fallible {
 
     for machine in &job.machines {
         if machine.task.is_none() {
-            machine.install_required_software(&job.config)?;
             machine.copy_binary_and_inputs(&job)?;
+            machine.install_required_software(&job.config)?;
         }
     }
 
