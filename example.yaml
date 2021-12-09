@@ -15,12 +15,12 @@ config:
   check_interval: 300
 machines: []
 tasks:
-  - name: "task_x_{{repeat}}"
-    cmd: "../binary input-x.dat {{repeat}}"
-    repeat: 3
-  - name: "task_y_{{repeat}}"
-    cmd: "../binary input-y.dat {{repeat}}"
-    repeat: 3
-  - name: "task_z_{{repeat}}"
-    cmd: "../binary input-z.dat {{repeat}}"
-    repeat: 3
+  - name: "task_x_{{index}}"
+    cmd: "../binary input-x.dat {{index}}"
+    range:
+      start: 0
+      end: 3
+  - name: "task_y"
+    cmd: "../binary input-y.dat"
+  - name: "task_z"
+    cmd: "../binary input-z.dat"

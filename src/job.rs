@@ -34,7 +34,11 @@ impl Job {
         let max_tasks = self
             .tasks
             .iter()
-            .map(|task| task.repeat.map_or(1, |repeat| repeat.max(1)))
+            .map(|task| {
+                task.range
+                    .as_ref()
+                    .map_or(1, |range| range.end - range.start)
+            })
             .sum::<usize>();
 
         max_tasks.min(self.config.max_machines)
@@ -54,17 +58,16 @@ impl Job {
     pub fn next_task(tasks: &mut VecDeque<Task>) -> Option<Task> {
         let mut task = tasks.pop_front()?;
 
-        if let Some(repeat) = task.repeat {
-            if repeat > 1 {
+        if let Some(range) = &task.range {
+            if range.end - range.start > 1 {
                 let mut task = task.clone();
-                task.repeat = Some(repeat - 1);
+                task.range.as_mut().unwrap().start += 1;
                 tasks.push_back(task);
             }
 
-            let repeat = repeat.to_string();
-            task.name = task.name.replace("{{repeat}}", &repeat);
-            task.cmd = task.cmd.replace("{{repeat}}", &repeat);
-            task.repeat = None;
+            let index = range.start.to_string();
+            task.name = task.name.replace("{{index}}", &index);
+            task.cmd = task.cmd.replace("{{index}}", &index);
         }
 
         Some(task)

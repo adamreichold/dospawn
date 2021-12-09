@@ -1,3 +1,4 @@
+use std::ops::Range;
 use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
@@ -8,7 +9,7 @@ use crate::{machine::Machine, Config, Fallible, SSH_OPTS};
 pub struct Task {
     pub name: String,
     pub cmd: String,
-    pub repeat: Option<usize>,
+    pub range: Option<Range<usize>>,
 }
 
 impl Task {
