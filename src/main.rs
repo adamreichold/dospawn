@@ -30,15 +30,17 @@ fn main() -> Fallible {
     let mut todo = VecDeque::new();
 
     for machine in &job.machines {
-        if machine.task.is_none() {
+        if machine.tasks.iter().all(|task| task.is_none()) {
             machine.copy_binary_and_inputs(&job)?;
             machine.install_required_software(&job.config)?;
         }
 
-        todo.push_back((Instant::now(), machine.id));
+        for task_idx in 0..job.config.tasks_per_machine {
+            todo.push_back((Instant::now(), machine.id, task_idx));
+        }
     }
 
-    while let Some((deadline, machine_id)) = todo.pop_front() {
+    while let Some((deadline, machine_id, task_idx)) = todo.pop_front() {
         if let Some(duration) = deadline.checked_duration_since(Instant::now()) {
             sleep(duration);
         }
@@ -51,7 +53,7 @@ fn main() -> Fallible {
 
         let machine = &mut job.machines[machine_idx];
 
-        if let Some(task) = &machine.task {
+        if let Some(task) = &machine.tasks[task_idx] {
             let finished = task.check(&job.config, machine)?;
 
             if finished || job.config.fetch_partial_results {
@@ -59,7 +61,7 @@ fn main() -> Fallible {
             }
 
             if finished {
-                machine.task = None;
+                machine.tasks[task_idx] = None;
 
                 job.write(&path)?;
             }
@@ -67,25 +69,33 @@ fn main() -> Fallible {
 
         let machine = &mut job.machines[machine_idx];
 
-        if machine.task.is_none() {
+        if machine.tasks[task_idx].is_none() {
             if let Some(task) = Job::next_task(&mut job.tasks) {
                 task.start(&job.config, machine)?;
 
-                machine.task = Some(task);
+                machine.tasks[task_idx] = Some(task);
 
                 job.write(&path)?;
             } else {
-                machine.delete()?;
+                if machine.tasks.iter().all(|task| task.is_none()) {
+                    machine.delete()?;
 
-                job.machines.swap_remove(machine_idx);
+                    todo.retain(|(_, machine_id, _)| *machine_id != machine.id);
 
-                job.write(&path)?;
+                    job.machines.swap_remove(machine_idx);
+
+                    job.write(&path)?;
+                }
 
                 continue;
             }
         }
 
-        todo.push_back((Instant::now() + job.config.check_interval, machine_id));
+        todo.push_back((
+            Instant::now() + job.config.check_interval,
+            machine_id,
+            task_idx,
+        ));
     }
 
     Ok(())
@@ -94,6 +104,7 @@ fn main() -> Fallible {
 #[derive(Serialize, Deserialize)]
 pub struct Config {
     pub max_machines: usize,
+    pub tasks_per_machine: usize,
     pub name: String,
     pub image: String,
     pub size: String,

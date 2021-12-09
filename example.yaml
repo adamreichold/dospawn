@@ -5,6 +5,7 @@ inputs:
   - /project/input-z.dat
 config:
   max_machines: 4
+  tasks_per_machine: 2
   name: example
   image: "23"
   size: c-4

@@ -9,7 +9,7 @@ pub struct Machine {
     pub name: String,
     pub id: usize,
     pub ip: String,
-    pub task: Option<Task>,
+    pub tasks: Vec<Option<Task>>,
 }
 
 impl Machine {
@@ -52,7 +52,7 @@ impl Machine {
             name,
             id,
             ip,
-            task: None,
+            tasks: vec![None; config.tasks_per_machine],
         })
     }
 
