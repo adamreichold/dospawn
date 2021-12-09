@@ -41,7 +41,7 @@ fn main() -> Fallible {
 
             if let Some(task) = &machine.task {
                 if Machine::next_check(&mut machine.next_check, &job.config) {
-                    let finished = task.check(&job.config, &job.binary, machine)?;
+                    let finished = task.check(&job.config, machine)?;
 
                     if finished || job.config.fetch_partial_results {
                         task.fetch_results(&job.config, machine)?;

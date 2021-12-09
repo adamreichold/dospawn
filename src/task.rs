@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
@@ -17,7 +16,7 @@ impl Task {
         println!("Starting task {} on machine {}", self.name, machine.name);
 
         let cmd = format!(
-            "rm -rf {name} && mkdir {name} && cd {name} && (nohup {cmd} >stdout 2>stderr &)",
+            "rm -rf {name} && mkdir {name} && cd {name} && (nohup sh -c '{cmd} >stdout 2>stderr ; touch done' >/dev/null 2>&1 &)",
             name = self.name,
             cmd = self.cmd,
         );
@@ -40,16 +39,10 @@ impl Task {
         Ok(())
     }
 
-    pub fn check(&self, config: &Config, binary: &Path, machine: &Machine) -> Fallible<bool> {
+    pub fn check(&self, config: &Config, machine: &Machine) -> Fallible<bool> {
         println!("Checking task {} on machine {}", self.name, machine.name);
 
-        let binary_file_name = binary
-            .file_name()
-            .ok_or("Missing binary file name")?
-            .to_str()
-            .ok_or("Invalid binary file name")?;
-
-        let cmd = format!("pidof {}", binary_file_name);
+        let cmd = format!("stat {}/done >/dev/null 2>&1", self.name);
 
         let ssh = Command::new("ssh")
             .args(SSH_OPTS)
@@ -59,7 +52,7 @@ impl Task {
             .stdout(Stdio::null())
             .status()?;
 
-        Ok(!ssh.success())
+        Ok(ssh.success())
     }
 
     pub fn fetch_results(&self, config: &Config, machine: &Machine) -> Fallible {
