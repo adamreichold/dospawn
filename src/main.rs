@@ -42,7 +42,9 @@ fn main() -> Fallible {
             if let Some(task) = &machine.task {
                 let finished = task.check(&job.config, &job.binary, machine)?;
 
-                task.fetch_results(&job.config, machine)?;
+                if finished || job.config.fetch_partial_results {
+                    task.fetch_results(&job.config, machine)?;
+                }
 
                 if finished {
                     machine.task = None;
@@ -92,6 +94,8 @@ pub struct Config {
     pub ssh_key: String,
     pub ssh_user: String,
     pub install_cmd: String,
+    #[serde(default)]
+    pub fetch_partial_results: bool,
 }
 
 const SSH_OPTS: &[&str] = &[
