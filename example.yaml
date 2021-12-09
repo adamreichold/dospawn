@@ -12,6 +12,7 @@ config:
   ssh_key: "42"
   ssh_user: "clear"
   install_cmd: "sudo swupd bundle-add rsync"
+  check_interval: 300
 machines: []
 tasks:
   - name: "task_x_{{repeat}}"

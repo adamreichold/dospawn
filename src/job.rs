@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::fs::{read, write};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 use serde_yaml::{from_slice, to_vec};
@@ -37,6 +38,17 @@ impl Job {
             .sum::<usize>();
 
         max_tasks.min(self.config.max_machines)
+    }
+
+    pub fn next_check(&self) -> Option<Duration> {
+        let next_check = self
+            .machines
+            .iter()
+            .map(|machine| machine.next_check)
+            .min()
+            .unwrap();
+
+        next_check.duration_since(SystemTime::now()).ok()
     }
 
     pub fn next_task(tasks: &mut VecDeque<Task>) -> Option<Task> {

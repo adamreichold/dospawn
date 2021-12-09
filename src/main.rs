@@ -3,7 +3,7 @@ use std::error::Error;
 use std::thread::sleep;
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 mod job;
 mod machine;
@@ -40,16 +40,18 @@ fn main() -> Fallible {
             let machine = &mut job.machines[idx];
 
             if let Some(task) = &machine.task {
-                let finished = task.check(&job.config, &job.binary, machine)?;
+                if Machine::next_check(&mut machine.next_check, &job.config) {
+                    let finished = task.check(&job.config, &job.binary, machine)?;
 
-                if finished || job.config.fetch_partial_results {
-                    task.fetch_results(&job.config, machine)?;
-                }
+                    if finished || job.config.fetch_partial_results {
+                        task.fetch_results(&job.config, machine)?;
+                    }
 
-                if finished {
-                    machine.task = None;
+                    if finished {
+                        machine.task = None;
 
-                    job.write(&path)?;
+                        job.write(&path)?;
+                    }
                 }
             }
 
@@ -76,8 +78,8 @@ fn main() -> Fallible {
 
         if job.machines.is_empty() {
             break;
-        } else {
-            sleep(Duration::from_secs(300));
+        } else if let Some(duration) = job.next_check() {
+            sleep(duration);
         }
     }
 
@@ -94,8 +96,20 @@ pub struct Config {
     pub ssh_key: String,
     pub ssh_user: String,
     pub install_cmd: String,
+    #[serde(serialize_with = "write_duration", deserialize_with = "read_duration")]
+    pub check_interval: Duration,
     #[serde(default)]
     pub fetch_partial_results: bool,
+}
+
+fn write_duration<S: Serializer>(dur: &Duration, serializer: S) -> Result<S::Ok, S::Error> {
+    dur.as_secs().serialize(serializer)
+}
+
+fn read_duration<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Duration, D::Error> {
+    let secs = u64::deserialize(deserializer)?;
+
+    Ok(Duration::from_secs(secs))
 }
 
 const SSH_OPTS: &[&str] = &[
