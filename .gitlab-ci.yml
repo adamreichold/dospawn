@@ -1,0 +1,13 @@
+build:
+  image: rust:slim
+  variables:
+    RUSTFLAGS: "-Ctarget-feature=+crt-static"
+  before_script:
+    - apt-get update && apt-get install --yes --no-install-recommends musl-tools
+    - rustup target add x86_64-unknown-linux-musl
+  script:
+    - cargo build --release --target x86_64-unknown-linux-musl
+    - strip --strip-all target/x86_64-unknown-linux-musl/release/dospawn
+  artifacts:
+    paths:
+      - target/x86_64-unknown-linux-musl/release/dospawn
