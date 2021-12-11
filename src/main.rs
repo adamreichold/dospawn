@@ -4,7 +4,7 @@ use std::error::Error;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 mod job;
 mod machine;
@@ -100,7 +100,7 @@ fn main() -> Fallible {
         }
 
         todo.push_back((
-            Instant::now() + job.config.check_interval,
+            Instant::now() + Duration::from_secs(job.config.check_interval),
             machine_idx,
             task_idx,
         ));
@@ -120,20 +120,9 @@ pub struct Config {
     pub ssh_key: String,
     pub ssh_user: String,
     pub install_cmd: String,
-    #[serde(serialize_with = "write_duration", deserialize_with = "read_duration")]
-    pub check_interval: Duration,
+    pub check_interval: u64,
     #[serde(default)]
     pub fetch_partial_results: bool,
-}
-
-fn write_duration<S: Serializer>(dur: &Duration, serializer: S) -> Result<S::Ok, S::Error> {
-    dur.as_secs().serialize(serializer)
-}
-
-fn read_duration<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Duration, D::Error> {
-    let secs = u64::deserialize(deserializer)?;
-
-    Ok(Duration::from_secs(secs))
 }
 
 const SSH_OPTS: &[&str] = &[
