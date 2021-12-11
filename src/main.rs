@@ -29,27 +29,21 @@ fn main() -> Fallible {
 
     let mut todo = VecDeque::new();
 
-    for machine in &job.machines {
+    for (machine_idx, machine) in job.machines.iter().enumerate() {
         if machine.tasks.iter().all(|task| task.is_none()) {
             machine.copy_binary_and_inputs(&job)?;
             machine.install_required_software(&job.config)?;
         }
 
         for task_idx in 0..job.config.tasks_per_machine {
-            todo.push_back((Instant::now(), machine.id, task_idx));
+            todo.push_back((Instant::now(), machine_idx, task_idx));
         }
     }
 
-    while let Some((deadline, machine_id, task_idx)) = todo.pop_front() {
+    while let Some((deadline, machine_idx, task_idx)) = todo.pop_front() {
         if let Some(duration) = deadline.checked_duration_since(Instant::now()) {
             sleep(duration);
         }
-
-        let machine_idx = job
-            .machines
-            .iter_mut()
-            .position(|machine| machine.id == machine_id)
-            .unwrap();
 
         let machine = &mut job.machines[machine_idx];
 
@@ -80,7 +74,21 @@ fn main() -> Fallible {
                 if machine.tasks.iter().all(|task| task.is_none()) {
                     machine.delete()?;
 
-                    todo.retain(|(_, machine_id, _)| *machine_id != machine.id);
+                    let mut todo_idx = 0;
+
+                    while todo_idx < todo.len() {
+                        let (_, machine_idx1, _) = &mut todo[todo_idx];
+
+                        if *machine_idx1 == machine_idx {
+                            todo.remove(todo_idx);
+                        } else {
+                            if *machine_idx1 == job.machines.len() - 1 {
+                                *machine_idx1 = machine_idx;
+                            }
+
+                            todo_idx += 1;
+                        }
+                    }
 
                     job.machines.swap_remove(machine_idx);
 
@@ -93,7 +101,7 @@ fn main() -> Fallible {
 
         todo.push_back((
             Instant::now() + job.config.check_interval,
-            machine_id,
+            machine_idx,
             task_idx,
         ));
     }
